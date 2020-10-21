@@ -13,8 +13,8 @@ class Net(nn.Module):
         super(Net, self).__init__()
         # a bunch of temporary flag, the useful setting will be merge to config file
         # here is just to easily setup experiments
-        self.use_ln = True
-        self.norm_before_relu = True
+        self.use_ln = False
+        self.norm_before_relu = False
         self.pos_feat_ar = False
         # define private variables
         self.time_step = C.RIN.INPUT_SIZE
