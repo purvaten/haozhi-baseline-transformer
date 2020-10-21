@@ -19,7 +19,7 @@ RIN:
   IN_FEAT_DIM: 256
   # prediction setting:
   INPUT_SIZE: 1
-  PRED_SIZE_TRAIN: 10
+  PRED_SIZE_TRAIN: 5
   PRED_SIZE_TEST: 10
   # input setting:
   INPUT_HEIGHT: 128
