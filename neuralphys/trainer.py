@@ -46,7 +46,8 @@ class Trainer(object):
             self.epochs += 1
 
     def train_epoch(self):
-        for batch_idx, (data, data_t, rois, gt_boxes, gt_masks, valid, g_idx, seq_l) in enumerate(self.train_loader):
+        # for batch_idx, (data, data_t, rois, gt_boxes, gt_masks, valid, module_valid, g_idx, seq_l) in enumerate(self.train_loader):
+        for batch_idx, (data, data_pred, data_t, env_name, rois, gt_boxes, gt_masks, valid, module_valid, g_idx, seq_l) in enumerate(self.train_loader):
             self._adjust_learning_rate()
 
             if C.RIN.ROI_MASKING or C.RIN.ROI_CROPPING:
@@ -64,6 +65,7 @@ class Trainer(object):
                 'boxes': gt_boxes.to(self.device),
                 'masks': gt_masks.to(self.device),
                 'valid': valid.to(self.device),
+                'module_valid': module_valid.to(self.device),
                 'seq_l': seq_l.to(self.device),
             }
             loss = self.loss(outputs, labels, 'train')
@@ -105,7 +107,8 @@ class Trainer(object):
             box_p_step_losses = [0.0 for _ in range(self.ptest_size)]
             masks_step_losses = [0.0 for _ in range(self.ptest_size)]
 
-        for batch_idx, (data, _, rois, gt_boxes, gt_masks, valid, g_idx, seq_l) in enumerate(self.val_loader):
+        # for batch_idx, (data, _, rois, gt_boxes, gt_masks, valid, module_valid, g_idx, seq_l) in enumerate(self.val_loader):
+        for batch_idx, (data, data_pred, data_t, env_name, rois, gt_boxes, gt_masks, valid, module_valid, g_idx, seq_l) in enumerate(self.val_loader):
             tprint(f'eval: {batch_idx}/{len(self.val_loader)}')
             with torch.no_grad():
 
@@ -120,6 +123,7 @@ class Trainer(object):
                     'boxes': gt_boxes.to(self.device),
                     'masks': gt_masks.to(self.device),
                     'valid': valid.to(self.device),
+                    'module_valid': module_valid.to(self.device),
                     'seq_l': seq_l.to(self.device),
                 }
 

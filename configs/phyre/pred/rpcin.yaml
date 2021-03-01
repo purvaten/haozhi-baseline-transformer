@@ -1,13 +1,13 @@
 OUTPUT_DIR: ./outputs/phys
-DATA_ROOT: 'data/dynamics/PHYRE_1fps_p20n80/'
+DATA_ROOT: '/srv/flash1/purva/Projects/physics/data/PHYRE_1fps_p20n80_new/'
 DATASET_ABS: 'PHYRE'
 SOLVER:
   BASE_LR: 2.0e-4  # single GPU LR
   WEIGHT_DECAY: 0.0
   SCHEDULER: 'cosine'
-  MAX_ITERS: 3000000
+  MAX_ITERS: 6000000
   VAL_INTERVAL: 300000
-  BATCH_SIZE: 40 # single GPU Batch Size
+  BATCH_SIZE: 64 # single GPU Batch Size
 INPUT:
   PRELOAD_TO_MEMORY: False
   PHYRE_USE_EMBEDDING: False

@@ -52,6 +52,11 @@ class PHYRE(Phys):
                 self.video_info = np.vstack((self.video_info, video_info_t))
             np.save(video_info_name, self.video_info)
 
+        for module in C.SINGULAR_MODULES:
+            self.module_dict[module] = np.load(f'{data_root}/{module}/thresh_{C.MASK_THRESH}/{protocal}_{split}_{self.input_size}_{self.pred_size}_fold_0_info.npy')
+        for module in C.DUAL_MODULES:
+            self.module_dict[module] = np.load(f'{data_root}/{module}/{C.DUAL_DATATYPE}/thresh_{C.MASK_THRESH}/{protocal}_{split}_{self.input_size}_{self.pred_size}_fold_0_info.npy')
+
     def _parse_image(self, video_name, vid_idx, img_idx):
         if C.INPUT.PHYRE_USE_EMBEDDING:
             data = np.load(video_name)[::-1]
@@ -60,8 +65,11 @@ class PHYRE(Phys):
             data = self._image_colors_to_onehot(data)
             data = data.numpy()[None]
         else:
-            data = np.array([phyre.observations_to_float_rgb(np.load(video_name))], dtype=np.float).transpose((0, 3, 1, 2))
-        return data
+            env_name = video_name.split('/')[-3]
+            images = hickle.load(video_name.replace('images', 'full').replace('.npy', '_image.hkl'))
+            data = np.array([phyre.observations_to_float_rgb(img.astype(int)) for img in images], dtype=np.float).transpose((0, 3, 1, 2))
+            data = data[img_idx:img_idx + self.seq_size]
+        return data, images[img_idx:img_idx + self.seq_size], env_name
 
     def _parse_label(self, anno_name, vid_idx, img_idx):
         boxes = hickle.load(anno_name)[img_idx:img_idx + self.seq_size, :, 1:]

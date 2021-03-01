@@ -106,3 +106,11 @@ _C.PCLS.ARCH = 'resnet18'
 # Misc options
 # ---------------------------------------------------------------------------- #
 _C.OUTPUT_DIR = './outputs/default'
+
+# ---------------------------------------------------------------------------- #
+# Module specific
+# ---------------------------------------------------------------------------- #
+_C.SINGULAR_MODULES = ['ball', 'bar', 'jar']
+_C.DUAL_MODULES = ['ball-ball', 'ball-bar', 'ball-jar', 'bar-jar', 'jar-jar']
+_C.MASK_THRESH = '1.0'
+_C.DUAL_DATATYPE = 'loose'

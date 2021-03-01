@@ -1,3 +1,12 @@
+r"""
+python test.py \
+--cfg configs/phyre/pred/rpcin.yaml \
+--gpus 0 \
+--predictor-init outputs/phys/flash1/haozhi_baseline/ckpt_best.path.tar
+
+Visualization:
+ffmpeg -i haozhi_baseline/batch7.mp4 -i best_model/batch7.mp4 -filter_complex vstack=inputs=2 output7.mp4
+"""
 import os
 import torch
 import random
@@ -18,7 +27,7 @@ def arg_parse():
     parser = argparse.ArgumentParser(description='RPIN parameters')
     parser.add_argument('--cfg', required=True, help='path to config file', type=str)
     parser.add_argument('--predictor-init', type=str, default=None)
-    parser.add_argument('--predictor-arch', type=str, default=None)
+    parser.add_argument('--predictor-arch', type=str, default='rpcin')
     parser.add_argument('--plot-image', type=int, default=0, help='how many images are plotted')
     parser.add_argument('--gpus', type=str)
     parser.add_argument('--eval-hit', action='store_true')
@@ -79,7 +88,7 @@ def main():
     split_name = 'planning' if (args.eval_hit and 'PHYRE' not in C.DATA_ROOT) else 'test'
     val_set = eval(f'{C.DATASET_ABS}')(data_root=C.DATA_ROOT, split=split_name, image_ext=C.RIN.IMAGE_EXT)
     batch_size = 1 if C.RIN.VAE else C.SOLVER.BATCH_SIZE
-    val_loader = DataLoader(val_set, batch_size=batch_size, num_workers=16)
+    val_loader = DataLoader(val_set, batch_size=batch_size, num_workers=0, shuffle=True)
 
     # prediction evaluation
     if not args.eval_hit:

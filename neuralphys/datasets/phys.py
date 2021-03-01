@@ -11,6 +11,8 @@ from neuralphys.utils.bbox import xyxy2xywh
 plot = False  # this is promised to be a temporary flag
 debug = False
 
+import pdb
+
 
 class Phys(Dataset):
     def __init__(self, data_root, split, image_ext='.jpg'):
@@ -25,6 +27,8 @@ class Phys(Dataset):
         self.input_height, self.input_width = C.RIN.INPUT_HEIGHT, C.RIN.INPUT_WIDTH
         self.video_list, self.anno_list = None, None
         self.video_info = None
+        # 3. module specific
+        self.module_dict = {}
 
     def __len__(self):
         return self.video_info.shape[0]
@@ -35,8 +39,7 @@ class Phys(Dataset):
         if C.RIN.VAE:
             data, data_t = self._parse_image(video_name, vid_idx, img_idx)
         else:
-            data = self._parse_image(video_name, vid_idx, img_idx)
-            data_t = data.copy()
+            data, data_t, env_name = self._parse_image(video_name, vid_idx, img_idx)
 
         boxes, gt_masks, labels = self._parse_label(anno_name, vid_idx, img_idx)
 
@@ -87,6 +90,10 @@ class Phys(Dataset):
 
         # rois
         rois = boxes[:self.input_size].copy()
+        # data
+        data_pred = data[self.input_size:].copy()    # GT future frames
+        data = data[:self.input_size].copy()
+        data_t = data_t[:self.input_size].copy()
         # gt boxes
         gt_boxes = boxes[self.input_size:].copy()
         gt_boxes = xyxy2xywh(gt_boxes.reshape(-1, 4)).reshape((-1, C.RIN.NUM_OBJS, 4))
@@ -137,14 +144,21 @@ class Phys(Dataset):
                         data_crop[i, j] = data_crop_.transpose((2, 0, 1))
             data = data_crop.copy()
 
+        # module valid stuff
+        ALL_MODULES = C.SINGULAR_MODULES + C.DUAL_MODULES
+        module_valid = np.empty((len(ALL_MODULES), self.input_size+self.pred_size-1, C.RIN.NUM_OBJS))
+        for mid, module in enumerate(ALL_MODULES):
+            module_valid[mid] = np.expand_dims(self.module_dict[module][idx].astype('int'), axis=0)
+
         data = torch.from_numpy(data.astype(np.float32))
+        data_pred = torch.from_numpy(data_pred.astype(np.float32))
         data_t = torch.from_numpy(data_t.astype(np.float32))
         rois = torch.from_numpy(rois.astype(np.float32))
         gt_boxes = torch.from_numpy(gt_boxes.astype(np.float32))
         gt_masks = torch.from_numpy(gt_masks.astype(np.float32))
         valid = torch.from_numpy(valid.astype(np.float32))
 
-        return data, data_t, rois, gt_boxes, gt_masks, valid, g_idx, labels
+        return data, data_pred, data_t, env_name, rois, gt_boxes, gt_masks, valid, module_valid, g_idx, labels
 
     def _parse_image(self, video_name, vid_idx, img_idx):
         raise NotImplementedError

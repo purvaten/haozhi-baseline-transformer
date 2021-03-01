@@ -1,3 +1,11 @@
+r"""
+python train.py \
+--cfg configs/phyre/pred/rpcin.yaml \
+--gpus 0 \
+--output haozhi_baseline
+
+TODO: change train code to account for dataloader changes
+"""
 import os
 import torch
 import random
