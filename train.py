@@ -30,6 +30,9 @@ def arg_parse():
     parser.add_argument('--gpus', type=str)
     parser.add_argument('--output', type=str)
     parser.add_argument('--seed', type=int, default=0)
+    # transformer parameters
+    parser.add_argument('--trans', type=int, default=0)
+    parser.add_argument('--conv', type=int, default=0)
     return parser.parse_args()
 
 
@@ -70,7 +73,7 @@ def main():
     logger = setup_logger('RPIN', output_dir)
     print(git_diff_config(args.cfg))
 
-    model = eval(cfg.RIN.ARCH + '.Net')()
+    model = eval(cfg.RIN.ARCH + '.Net')(trans=args.trans, conv=args.conv)
     model.to(torch.device('cuda'))
     model = torch.nn.DataParallel(
         model, device_ids=list(range(args.gpus.count(',') + 1))

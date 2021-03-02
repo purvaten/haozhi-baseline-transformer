@@ -9,9 +9,12 @@ from neuralphys.models.backbones.build import build_backbone
 
 
 class Net(nn.Module):
-    def __init__(self):
+    def __init__(self, trans, conv):
         super(Net, self).__init__()
         # a bunch of temporary flag, the useful setting will be merge to config file
+        # transformer parameters
+        self.trans = trans
+        self.conv = conv
         # here is just to easily setup experiments
         self.use_ln = False
         self.norm_before_relu = False
@@ -47,7 +50,7 @@ class Net(nn.Module):
 
         graph = []
         for i in range(self.time_step):
-            graph.append(InterNet(self.in_feat_dim))
+            graph.append(InterNet(self.in_feat_dim, trans=self.trans, conv=self.conv))
         self.graph = nn.ModuleList(graph)
 
         assert C.RIN.N_EXTRA_PRED_F == 0

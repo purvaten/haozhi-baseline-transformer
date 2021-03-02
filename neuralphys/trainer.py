@@ -246,6 +246,10 @@ class Trainer(object):
             {
                 'arch': self.model.__class__.__name__,
                 'model': self.model.state_dict(),
+                'optim': self.optim.state_dict(),
+                'iterations': self.iterations,
+                'epochs': self.epochs,
+                'best_mean': self.best_mean,
             },
             os.path.join(self.output_dir, name),
         )

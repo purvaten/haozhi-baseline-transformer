@@ -5,14 +5,12 @@ import torch.nn.functional as F
 from neuralphys.utils.config import _C as C
 import pdb
 
-# promised to be temporary flags
-trans = 1
-conv = 1
-
 
 class InterNet(nn.Module):
-    def __init__(self, in_feat_dim):
+    def __init__(self, in_feat_dim, trans, conv):
         super(InterNet, self).__init__()
+        self.trans = trans
+        self.conv = conv
         self.in_feat_dim = in_feat_dim
         # self dynamics, input object state, output new object state
         self_dynamics = [
@@ -57,7 +55,10 @@ class InterNet(nn.Module):
         self.w_qs = nn.Linear(self.downsize * 5 * 5, self.downsize * 5 * 5, bias=False)
         self.w_ks = nn.Linear(self.downsize * 5 * 5, self.downsize * 5 * 5, bias=False)
         # transformer
-        self.layer_norm = nn.LayerNorm([C.RIN.NUM_OBJS, self.in_feat_dim, 5, 5], eps=1e-6)
+        self.layer_norm1 = nn.LayerNorm([C.RIN.NUM_OBJS, self.in_feat_dim, 5, 5], eps=1e-6)
+        self.layer_norm2 = nn.LayerNorm([C.RIN.NUM_OBJS, self.in_feat_dim, 5, 5], eps=1e-6)
+        self.feedforward = nn.Linear(self.in_feat_dim * 5 * 5, self.in_feat_dim * 5 * 5, bias=False)
+        self.aggregator_trans = nn.Sequential(*[nn.Conv2d(self.in_feat_dim, self.in_feat_dim, kernel_size=3, stride=1, padding=1), nn.ReLU(inplace=True)])
         # conv
         self.convq = nn.Sequential(*[nn.Conv2d(self.downsize, self.downsize, kernel_size=3, stride=1, padding=1), nn.ReLU(inplace=True)])
         self.convk = nn.Sequential(*[nn.Conv2d(self.downsize, self.downsize, kernel_size=3, stride=1, padding=1), nn.ReLU(inplace=True)])
@@ -79,7 +80,7 @@ class InterNet(nn.Module):
 
         # self-attention weights - rel_wts: (64, 6, 5), self_wts: (64, 6)
         s2d = self.attn_conv2d(s.reshape(-1, dim, psz, psz))    # (64 * 6, 32, 5, 5)
-        if conv:
+        if self.conv:
             q = self.convq(s2d).reshape(-1, num_objs, self.downsize * psz * psz)    # (64, 6, 800)
             k = self.convk(s2d).reshape(-1, num_objs, self.downsize * psz * psz)    # (64, 6, 800)
         else:
@@ -102,10 +103,11 @@ class InterNet(nn.Module):
         a = self.affector(pred.reshape(-1, dim, psz, psz)).reshape(batch_size, num_objs, dim, psz, psz)    # fA in eqn (1) -- (64, 6, 256, 5, 5)
         
         # transformer: add residual to a
-        if trans:
-            a = a + s
-            a = self.layer_norm(a)
-
-        a = torch.cat([a, s], 2)    # (64, 6, 512, 5, 5)
-        out = self.aggregator(a.reshape(-1, dim * 2, psz, psz)).reshape(batch_size, num_objs, dim, psz, psz)    # fZ in eqn (1) -- (64, 6, 256, 5, 5)
+        if self.trans:
+            a = self.layer_norm1(a + s)
+            z = self.aggregator_trans(a.reshape(-1, dim, psz, psz)).reshape(batch_size, num_objs, dim, psz, psz)    # fZ in eqn (1) -- (64, 6, 256, 5, 5)
+            out = self.layer_norm2(self.feedforward(z.reshape(-1, self.in_feat_dim * psz * psz)).reshape(-1, num_objs, self.in_feat_dim, psz, psz) + z)
+        else:
+            a = torch.cat([a, s], 2)    # (64, 6, 512, 5, 5)
+            out = self.aggregator(a.reshape(-1, dim * 2, psz, psz)).reshape(batch_size, num_objs, dim, psz, psz)    # fZ in eqn (1) -- (64, 6, 256, 5, 5)
         return out
