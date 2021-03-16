@@ -46,7 +46,6 @@ class Trainer(object):
             self.epochs += 1
 
     def train_epoch(self):
-        # for batch_idx, (data, data_t, rois, gt_boxes, gt_masks, valid, module_valid, g_idx, seq_l) in enumerate(self.train_loader):
         for batch_idx, (data, data_pred, data_t, env_name, rois, gt_boxes, gt_masks, valid, module_valid, g_idx, seq_l) in enumerate(self.train_loader):
             self._adjust_learning_rate()
 
@@ -60,7 +59,7 @@ class Trainer(object):
             rois = xyxy_to_rois(rois, batch=data.shape[0], time_step=data.shape[1], num_devices=self.num_gpus)
             self.optim.zero_grad()
 
-            outputs = self.model(data, rois, pos_feat, num_rollouts=self.ptrain_size, g_idx=g_idx, x_t=data_t, phase='train')
+            outputs = self.model(data, rois, pos_feat, valid, num_rollouts=self.ptrain_size, g_idx=g_idx, x_t=data_t, phase='train')
             labels = {
                 'boxes': gt_boxes.to(self.device),
                 'masks': gt_masks.to(self.device),
@@ -107,7 +106,6 @@ class Trainer(object):
             box_p_step_losses = [0.0 for _ in range(self.ptest_size)]
             masks_step_losses = [0.0 for _ in range(self.ptest_size)]
 
-        # for batch_idx, (data, _, rois, gt_boxes, gt_masks, valid, module_valid, g_idx, seq_l) in enumerate(self.val_loader):
         for batch_idx, (data, data_pred, data_t, env_name, rois, gt_boxes, gt_masks, valid, module_valid, g_idx, seq_l) in enumerate(self.val_loader):
             tprint(f'eval: {batch_idx}/{len(self.val_loader)}')
             with torch.no_grad():
@@ -127,7 +125,7 @@ class Trainer(object):
                     'seq_l': seq_l.to(self.device),
                 }
 
-                outputs = self.model(data, rois, pos_feat, num_rollouts=self.ptest_size, g_idx=g_idx, phase='test')
+                outputs = self.model(data, rois, pos_feat, valid, num_rollouts=self.ptest_size, g_idx=g_idx, phase='test')
                 self.loss(outputs, labels, 'test')
                 # VAE multiple runs
                 if C.RIN.VAE:
@@ -136,7 +134,7 @@ class Trainer(object):
                     box_p_step_losses_t = self.box_p_step_losses.copy()
                     masks_step_losses_t = self.masks_step_losses.copy()
                     for i in range(9):
-                        outputs = self.model(data, rois, pos_feat, num_rollouts=self.ptest_size, g_idx=g_idx, phase='test')
+                        outputs = self.model(data, rois, pos_feat, valid, num_rollouts=self.ptest_size, g_idx=g_idx, phase='test')
                         self.loss(outputs, labels, 'test')
                         mean_loss = np.mean(np.array(self.box_p_step_losses[:self.ptest_size]) / self.loss_cnt) * 1e3
                         if mean_loss < vae_best_mean:
@@ -183,6 +181,12 @@ class Trainer(object):
         loss = loss * valid
         loss = loss.sum(2) / valid.sum(2)
         loss *= self.position_loss_weight
+
+        # **************************************************************************************************************************** #
+        # INDICATOR LOSS & EXPLICIT SPARSITY LOSS
+        # **************************************************************************************************************************** #
+        # module_valid = labels['module_valid'][:, :, :, None]
+        # pred, gt = outputs['pred_indicator'].permute(0,2,3,1), labels['gt_indicator'][:, :, :pred_size, :].permute(0,2,3,1)
 
         for i in range(pred_size):
             self.box_p_step_losses[i] += loss[:, i, :2].sum().item()

@@ -111,7 +111,7 @@ class Net(nn.Module):
             norms = [nn.LayerNorm([self.in_feat_dim, 5, 5]) for _ in range(self.time_step)]
             self.norms = nn.ModuleList(norms)
 
-    def forward(self, x, rois, p_feat, num_rollouts=10, g_idx=None, x_t=None, phase='train'):
+    def forward(self, x, rois, p_feat, valid, num_rollouts=10, g_idx=None, x_t=None, phase='train'):
         self.num_objs = rois.shape[2]
         # x: (b, t, c, h, w)
         # reshape time to batch dimension
@@ -131,9 +131,9 @@ class Net(nn.Module):
                 state_list = [self.norms[j](state_list[j]) for j in range(self.time_step)]
 
             if self.norm_before_relu:
-                c = [self.graph[j](F.relu(state_list[j]), g_idx) for j in range(self.time_step)]
+                c = [self.graph[j](F.relu(state_list[j]), valid, g_idx) for j in range(self.time_step)]
             else:
-                c = [self.graph[j](state_list[j], g_idx) for j in range(self.time_step)]
+                c = [self.graph[j](state_list[j], valid, g_idx) for j in range(self.time_step)]
 
             all_c = torch.cat(c, 2)
             s = self.predictor(all_c.reshape((-1,) + (all_c.shape[-3:])))

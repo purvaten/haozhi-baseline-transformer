@@ -1,5 +1,10 @@
 import torch
 import numpy as np
+import pdb
+import itertools
+from tqdm import tqdm
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 
 
 def xyxy_to_rois(boxes, batch, time_step, num_devices):
@@ -63,3 +68,78 @@ def xywh2xyxy(boxes):
     x1, x2 = xc - 0.5 * (w - 1.0), xc + 0.5 * (w - 1.0)
     y1, y2 = yc - 0.5 * (h - 1.0), yc + 0.5 * (h - 1.0)
     return np.vstack([x1, y1, x2, y2]).transpose()
+
+def boxes_overlap(imgs, valid, boxes, thresh):
+    """Return boolean list of size boxes.shape[0]
+        indicating whether to invoke interaction module or not.
+       If any 2 bounding boxes are close within threshold, set True.
+    """
+    # get IOU of all pairs of objects
+    times = boxes.shape[0]
+    overlap = np.zeros((times), dtype=bool)
+    combinations = list(itertools.combinations(np.where(valid == 1)[0], 2))
+
+    for t in range(times):
+        for (i, j) in combinations:
+            boxA = boxes[t][i].copy()
+            boxB = boxes[t][j].copy()
+
+            # draw a border of (thresh/2) for both boxes
+            bord = np.array([-1, -1, 1, 1]) * thresh/2
+            boxA += bord
+            boxB += bord
+            boxA[boxA<0], boxA[boxA>128] = 0, 128
+            boxB[boxB<0], boxB[boxB>128] = 0, 128
+
+            # (debugging) display the boxes on the image to be sure?
+            # display_img_with_bb(np.transpose(imgs[t], (1, 2, 0)), boxA, boxB, '%d_%d_%d.png' % (t,i,j))
+
+            # get iou
+            iou = bb_intersection_over_union(boxA, boxB)
+            # if iou is exactly 1.0 it is the same object
+            # if iou is 0, it means the objects are not touching or 1 or both are invalid
+            if iou != 1.0 and iou != 0:
+                overlap[t] = 1
+                break
+
+    return torch.from_numpy(overlap.astype(np.int))
+
+
+def bb_intersection_over_union(boxA, boxB):
+    # boxes given as xyxy
+    # determine the (x, y)-coordinates of the intersection rectangle
+    xA = max(boxA[0], boxB[0])
+    yA = max(boxA[1], boxB[1])
+    xB = min(boxA[2], boxB[2])
+    yB = min(boxA[3], boxB[3])
+    # compute the area of intersection rectangle
+    interArea = max(0, xB - xA) * max(0, yB - yA)
+    # compute the area of both the prediction and ground-truth
+    # rectangles
+    boxAArea = (boxA[2] - boxA[0]) * (boxA[3] - boxA[1])
+    boxBArea = (boxB[2] - boxB[0]) * (boxB[3] - boxB[1])
+    # compute the intersection over union by taking the intersection
+    # area and dividing it by the sum of prediction + ground-truth
+    # areas - the interesection area
+    unionArea = float(boxAArea + boxBArea - interArea)
+    if unionArea == 0:
+        iou = 0
+    else:
+        iou = interArea / unionArea
+    # return the intersection over union value
+    return iou
+
+
+def display_img_with_bb(im, boxA, boxB, name):
+    # Create figure and axes
+    fig, ax = plt.subplots(1)
+    ax.imshow(im)
+    a1, a2, a3, a4 = boxA
+    b1, b2, b3, b4 = boxB
+    recta = patches.Rectangle((a1,a2),a3-a1,a4-a2,linewidth=1,edgecolor='r',facecolor='none')
+    rectb = patches.Rectangle((b1,b2),b3-b1,b4-b2,linewidth=1,edgecolor='r',facecolor='none')
+    ax.add_patch(recta)
+    ax.add_patch(rectb)
+    # plt.savefig('images/' + name)
+    plt.savefig(name)
+    plt.close()

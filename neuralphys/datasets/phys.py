@@ -78,8 +78,7 @@ class Phys(Dataset):
         g_idx = []
         for i in range(C.RIN.NUM_OBJS):
             for j in range(C.RIN.NUM_OBJS):
-                if j == i:
-                    continue
+                if j == i: continue
                 g_idx.append([i, j, (i < num_objs) * (j < num_objs)])
         g_idx = np.array(g_idx)
 
@@ -149,6 +148,7 @@ class Phys(Dataset):
         module_valid = np.empty((len(ALL_MODULES), self.input_size+self.pred_size-1, C.RIN.NUM_OBJS))
         for mid, module in enumerate(ALL_MODULES):
             module_valid[mid] = np.expand_dims(self.module_dict[module][idx].astype('int'), axis=0)
+        module_valid = module_valid.transpose(0,2,1)    # (8, 6, 5)
 
         data = torch.from_numpy(data.astype(np.float32))
         data_pred = torch.from_numpy(data_pred.astype(np.float32))

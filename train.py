@@ -1,8 +1,10 @@
 r"""
 python train.py \
 --cfg configs/phyre/pred/rpcin.yaml \
---gpus 0 \
---output haozhi_baseline
+--gpus 4 \
+--conv 1 \
+--trans 0 \
+--output conv_attn_valid_6_relresidual_afflayernorm_selfplusrel
 
 TODO: change train code to account for dataloader changes
 """

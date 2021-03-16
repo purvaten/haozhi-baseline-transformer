@@ -91,16 +91,24 @@ class PredEvaluator(object):
                     'valid': valid.to(self.device),
                     'module_valid': module_valid.to(self.device),
                 }
-                outputs = self.model(data, rois, pos_feat, num_rollouts=self.ptest_size, g_idx=g_idx, phase='test')
+                outputs = self.model(data, rois, pos_feat, valid, num_rollouts=self.ptest_size, g_idx=g_idx, phase='test')
 
-                # *********************************************************************************
-                # VISUALIZATION - generate input image and GT outputs + model outputs
-                input_data = data.cpu().detach().numpy()
-                gt_data = data_pred.cpu().detach().numpy()
-                data_t = data_t.cpu().detach().numpy()
-                validity = valid.cpu().detach().numpy()
-                self.visualize_results(input_data, gt_data, outputs, data_t, validity, env_name)
-                # *********************************************************************************
+                # # *********************************************************************************
+                # # VISUALIZATION - generate input image and GT outputs + model outputs
+                # input_data = data.cpu().detach().numpy()    # (128, 1, 3, 128, 128)
+                # gt_data = data_pred.cpu().detach().numpy()    # (128, 10, 3, 128, 128)
+                # data_t = data_t.cpu().detach().numpy()    # (128, 1, 128, 128)
+                # validity = valid.cpu().detach().numpy()    # (128, 6)
+                # outputs_boxes = outputs['boxes'].cpu().detach().numpy()    # (128, 10, 6, 4)
+                # outputs_masks = outputs['masks'].cpu().detach().numpy()    # (128, 10, 6, 21, 21)
+                # np.save('save/'+str(batch_idx)+'input_data.npy', input_data)
+                # np.save('save/'+str(batch_idx)+'gt_data.npy', gt_data)
+                # np.save('save/'+str(batch_idx)+'data_t.npy', data_t)
+                # np.save('save/'+str(batch_idx)+'validity.npy', validity)
+                # np.save('save/'+str(batch_idx)+'outputs_boxes.npy', outputs_boxes)
+                # np.save('save/'+str(batch_idx)+'outputs_masks.npy', outputs_masks)
+                # # self.visualize_results(input_data, gt_data, outputs, data_t, validity, env_name)
+                # # *********************************************************************************
 
                 self.loss(outputs, labels, 'test')
                 # VAE multiple runs

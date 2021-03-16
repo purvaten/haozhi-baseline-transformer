@@ -2,6 +2,8 @@ r"""
 python test.py \
 --cfg configs/phyre/pred/rpcin.yaml \
 --gpus 0 \
+--trans 0 \
+--conv 1 \
 --predictor-init outputs/phys/flash1/haozhi_baseline/ckpt_best.path.tar
 
 Visualization:
@@ -35,6 +37,9 @@ def arg_parse():
     parser.add_argument('--start-id', default=0, type=int)
     parser.add_argument('--end-id', default=0, type=int)
     parser.add_argument('--fold-id', default=0, type=int)
+    # transformer parameters
+    parser.add_argument('--trans', type=int, default=0)
+    parser.add_argument('--conv', type=int, default=0)
     return parser.parse_args()
 
 
@@ -65,7 +70,7 @@ def main():
     output_dir = os.path.join(C.OUTPUT_DIR, cache_name)
 
     if args.eval_hit and 'PHYRE' in C.DATA_ROOT:
-        model = eval(args.predictor_arch + '.Net')()
+        model = eval(args.predictor_arch + '.Net')(trans=args.trans, conv=args.conv)
         model.to(torch.device('cuda'))
         model = torch.nn.DataParallel(
             model, device_ids=[0]
@@ -88,11 +93,11 @@ def main():
     split_name = 'planning' if (args.eval_hit and 'PHYRE' not in C.DATA_ROOT) else 'test'
     val_set = eval(f'{C.DATASET_ABS}')(data_root=C.DATA_ROOT, split=split_name, image_ext=C.RIN.IMAGE_EXT)
     batch_size = 1 if C.RIN.VAE else C.SOLVER.BATCH_SIZE
-    val_loader = DataLoader(val_set, batch_size=batch_size, num_workers=0, shuffle=True)
+    val_loader = DataLoader(val_set, batch_size=batch_size, num_workers=0, shuffle=False)
 
     # prediction evaluation
     if not args.eval_hit:
-        model = eval(args.predictor_arch + '.Net')()
+        model = eval(args.predictor_arch + '.Net')(trans=args.trans, conv=args.conv)
         model.to(torch.device('cuda'))
         model = torch.nn.DataParallel(
             model, device_ids=[0]
