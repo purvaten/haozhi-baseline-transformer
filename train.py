@@ -1,10 +1,11 @@
 r"""
 python train.py \
 --cfg configs/phyre/pred/rpcin.yaml \
---gpus 4 \
+--gpus 2 \
 --conv 1 \
 --trans 0 \
---output conv_attn_valid_6_relresidual_afflayernorm_selfplusrel
+--ind 1.0 \
+--output conv_attn_valid_6_relresidual_afflayernorm_ind_1.0_bce
 
 TODO: change train code to account for dataloader changes
 """
@@ -35,6 +36,8 @@ def arg_parse():
     # transformer parameters
     parser.add_argument('--trans', type=int, default=0)
     parser.add_argument('--conv', type=int, default=0)
+    # indicator alignment loss
+    parser.add_argument('--ind', type=float, default=0, help='indicator alignment loss weight')
     return parser.parse_args()
 
 
@@ -115,6 +118,7 @@ def main():
     kwargs = {'device': torch.device('cuda'),
               'model': model,
               'optim': optim,
+              'ind': args.ind,
               'train_loader': train_loader,
               'val_loader': val_loader,
               'output_dir': output_dir,

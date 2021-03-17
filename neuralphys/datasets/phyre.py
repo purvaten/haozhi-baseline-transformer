@@ -1,4 +1,5 @@
 import os
+import pdb
 import phyre
 import torch
 import hickle
@@ -56,6 +57,11 @@ class PHYRE(Phys):
             self.module_dict[module] = np.load(f'{data_root}/{module}/thresh_{C.MASK_THRESH}/{protocal}_{split}_{self.input_size}_{self.pred_size}_fold_0_info.npy')
         for module in C.DUAL_MODULES:
             self.module_dict[module] = np.load(f'{data_root}/{module}/{C.DUAL_DATATYPE}/thresh_{C.MASK_THRESH}/{protocal}_{split}_{self.input_size}_{self.pred_size}_fold_0_info.npy')
+
+        # load GT indicators and object info tags
+        self.objinfo = np.load(f'{data_root}/thresh/{C.MASK_THRESH}/{protocal}_{split}_{self.input_size}_{self.pred_size}_fold_0_objinfo.npy')
+        self.gtindicatorinfo = np.load(f'{data_root}/thresh/{C.MASK_THRESH}/{protocal}_{split}_{self.input_size}_{self.pred_size}_fold_0_gtindicatorinfo.npy')
+
 
     def _parse_image(self, video_name, vid_idx, img_idx):
         if C.INPUT.PHYRE_USE_EMBEDDING:

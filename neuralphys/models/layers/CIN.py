@@ -116,4 +116,4 @@ class InterNet(nn.Module):
         else:
             a = torch.cat([a, s], 2)    # (64, 6, 512, 5, 5)
             out = self.aggregator(a.reshape(-1, dim * 2, psz, psz)).reshape(batch_size, num_objs, dim, psz, psz)    # fZ in eqn (1) -- (64, 6, 256, 5, 5)
-        return out
+        return out, softmax

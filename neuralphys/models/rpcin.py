@@ -7,6 +7,8 @@ from neuralphys.utils.config import _C as C
 from neuralphys.models.layers.CIN import InterNet
 from neuralphys.models.backbones.build import build_backbone
 
+import pdb
+
 
 class Net(nn.Module):
     def __init__(self, trans, conv):
@@ -126,15 +128,19 @@ class Net(nn.Module):
         bbox_rollout = []
         mask_rollout = []
         state_list = [x[:, i] for i in range(self.time_step)]
+        pred_indicators = []
         for i in range(num_rollouts):
             if self.use_ln:
                 state_list = [self.norms[j](state_list[j]) for j in range(self.time_step)]
 
             if self.norm_before_relu:
-                c = [self.graph[j](F.relu(state_list[j]), valid, g_idx) for j in range(self.time_step)]
+                c = [self.graph[j](F.relu(state_list[j]), valid, g_idx)[0] for j in range(self.time_step)]
+                pred_ind = [self.graph[j](F.relu(state_list[j]), valid, g_idx)[1] for j in range(self.time_step)]
             else:
-                c = [self.graph[j](state_list[j], valid, g_idx) for j in range(self.time_step)]
+                c = [self.graph[j](state_list[j], valid, g_idx)[0] for j in range(self.time_step)]
+                pred_ind = [self.graph[j](state_list[j], valid, g_idx)[1] for j in range(self.time_step)]
 
+            pred_indicator = torch.cat(pred_ind, 2)
             all_c = torch.cat(c, 2)
             s = self.predictor(all_c.reshape((-1,) + (all_c.shape[-3:])))
             s = s.reshape((batch_size, self.num_objs) + s.shape[-3:])
@@ -151,6 +157,7 @@ class Net(nn.Module):
                     mask_rollout.append(mask)
 
             bbox_rollout.append(bbox)
+            pred_indicators.append(pred_indicator)
 
             if C.RIN.COOR_FEATURE and self.pos_feat_ar:
                 # un-squeeze time dimension
@@ -173,6 +180,8 @@ class Net(nn.Module):
         bbox_rollout = torch.stack(bbox_rollout).permute(1, 0, 2, 3)
         bbox_rollout = bbox_rollout.reshape(-1, num_rollouts, self.num_objs, self.decoder_output)
 
+        pred_indicators = torch.stack(pred_indicators).permute(1, 0, 2, 3)
+
         if len(mask_rollout) > 0:
             mask_rollout = torch.stack(mask_rollout).permute(1, 0, 2, 3)
             mask_rollout = mask_rollout.reshape(-1, num_rollouts, self.num_objs, self.mask_size, self.mask_size)
@@ -181,6 +190,7 @@ class Net(nn.Module):
             'boxes': bbox_rollout,
             'masks': mask_rollout,
             'score': seq_score,
+            'pred_indicators': pred_indicators,
         }
         return outputs
 

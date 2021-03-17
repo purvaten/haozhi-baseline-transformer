@@ -29,6 +29,8 @@ class Phys(Dataset):
         self.video_info = None
         # 3. module specific
         self.module_dict = {}
+        self.objinfo = None
+        self.gtindicatorinfo = None
 
     def __len__(self):
         return self.video_info.shape[0]
@@ -150,6 +152,10 @@ class Phys(Dataset):
             module_valid[mid] = np.expand_dims(self.module_dict[module][idx].astype('int'), axis=0)
         module_valid = module_valid.transpose(0,2,1)    # (8, 6, 5)
 
+        # GT indicator and object info
+        objinfo = self.objinfo[idx]
+        gtindicator = self.gtindicatorinfo[idx]
+
         data = torch.from_numpy(data.astype(np.float32))
         data_pred = torch.from_numpy(data_pred.astype(np.float32))
         data_t = torch.from_numpy(data_t.astype(np.float32))
@@ -157,8 +163,10 @@ class Phys(Dataset):
         gt_boxes = torch.from_numpy(gt_boxes.astype(np.float32))
         gt_masks = torch.from_numpy(gt_masks.astype(np.float32))
         valid = torch.from_numpy(valid.astype(np.float32))
+        objinfo = torch.from_numpy(objinfo.astype(np.float32))
+        gtindicator = torch.from_numpy(gtindicator.astype(np.float32))
 
-        return data, data_pred, data_t, env_name, rois, gt_boxes, gt_masks, valid, module_valid, g_idx, labels
+        return data, data_pred, data_t, env_name, rois, gt_boxes, gt_masks, valid, module_valid, g_idx, labels, objinfo, gtindicator
 
     def _parse_image(self, video_name, vid_idx, img_idx):
         raise NotImplementedError

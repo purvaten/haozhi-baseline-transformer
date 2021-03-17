@@ -6,10 +6,11 @@ from neuralphys.utils.misc import tprint
 from timeit import default_timer as timer
 from neuralphys.utils.config import _C as C
 from neuralphys.utils.bbox import xyxy_to_rois, xyxy_to_posf
+import pdb
 
 
 class Trainer(object):
-    def __init__(self, device, train_loader, val_loader, model, optim,
+    def __init__(self, device, train_loader, val_loader, model, optim, ind,
                  max_iters, num_gpus, logger, output_dir):
         # misc
         self.device = device
@@ -35,9 +36,13 @@ class Trainer(object):
         self._setup_loss()
         # timer setting
         self.best_mean = 1e6
+        # indicator loss
+        self.ind = ind
+        # self.indicator_criterion_bce = torch.nn.BCEWithLogitsLoss(reduction='none').to(self.device)
+        self.indicator_criterion_cross = torch.nn.CrossEntropyLoss(reduction='none').to(self.device)
 
     def train(self):
-        print_msg = "| ".join(["progress  | mean "] + list(map("{:6}".format, self.loss_name)))
+        print_msg = "| ".join(["progress  | mean "] + list(map("{:6}".format, self.loss_name)) + list(map("{:6}".format, ['IL'])))
         self.model.train()
         print('\r', end='')
         self.logger.info(print_msg)
@@ -46,7 +51,7 @@ class Trainer(object):
             self.epochs += 1
 
     def train_epoch(self):
-        for batch_idx, (data, data_pred, data_t, env_name, rois, gt_boxes, gt_masks, valid, module_valid, g_idx, seq_l) in enumerate(self.train_loader):
+        for batch_idx, (data, data_pred, data_t, env_name, rois, gt_boxes, gt_masks, valid, module_valid, g_idx, seq_l, objinfo, gtindicator) in enumerate(self.train_loader):
             self._adjust_learning_rate()
 
             if C.RIN.ROI_MASKING or C.RIN.ROI_CROPPING:
@@ -66,6 +71,7 @@ class Trainer(object):
                 'valid': valid.to(self.device),
                 'module_valid': module_valid.to(self.device),
                 'seq_l': seq_l.to(self.device),
+                'gt_indicators': gtindicator.to(self.device),
             }
             loss = self.loss(outputs, labels, 'train')
             loss.backward()
@@ -80,6 +86,7 @@ class Trainer(object):
             print_msg += f"{mean_loss:.3f} | "
             print_msg += f" | ".join(
                 ["{:.3f}".format(self.losses[name] * 1e3 / self.loss_cnt) for name in self.loss_name])
+            print_msg += " || {:.4f}".format(self.loss_ind)
             speed = self.loss_cnt / (timer() - self.time)
             eta = (self.max_iters - self.iterations) / speed / 3600
             print_msg += f" | speed: {speed:.1f} | eta: {eta:.2f} h"
@@ -106,7 +113,7 @@ class Trainer(object):
             box_p_step_losses = [0.0 for _ in range(self.ptest_size)]
             masks_step_losses = [0.0 for _ in range(self.ptest_size)]
 
-        for batch_idx, (data, data_pred, data_t, env_name, rois, gt_boxes, gt_masks, valid, module_valid, g_idx, seq_l) in enumerate(self.val_loader):
+        for batch_idx, (data, data_pred, data_t, env_name, rois, gt_boxes, gt_masks, valid, module_valid, g_idx, seq_l, objinfo, gtindicator) in enumerate(self.val_loader):
             tprint(f'eval: {batch_idx}/{len(self.val_loader)}')
             with torch.no_grad():
 
@@ -123,6 +130,7 @@ class Trainer(object):
                     'valid': valid.to(self.device),
                     'module_valid': module_valid.to(self.device),
                     'seq_l': seq_l.to(self.device),
+                    'gt_indicators': gtindicator.to(self.device),
                 }
 
                 outputs = self.model(data, rois, pos_feat, valid, num_rollouts=self.ptest_size, g_idx=g_idx, phase='test')
@@ -167,6 +175,7 @@ class Trainer(object):
             self.best_mean = mean_loss
 
         print_msg += f" | ".join(["{:.3f}".format(self.losses[name] * 1e3 / self.loss_cnt) for name in self.loss_name])
+        print_msg += " || {:.4f}".format(self.loss_ind)
         print_msg += (" " * (os.get_terminal_size().columns - len(print_msg) - 10))
         self.logger.info(print_msg)
 
@@ -181,12 +190,6 @@ class Trainer(object):
         loss = loss * valid
         loss = loss.sum(2) / valid.sum(2)
         loss *= self.position_loss_weight
-
-        # **************************************************************************************************************************** #
-        # INDICATOR LOSS & EXPLICIT SPARSITY LOSS
-        # **************************************************************************************************************************** #
-        # module_valid = labels['module_valid'][:, :, :, None]
-        # pred, gt = outputs['pred_indicator'].permute(0,2,3,1), labels['gt_indicator'][:, :, :pred_size, :].permute(0,2,3,1)
 
         for i in range(pred_size):
             self.box_p_step_losses[i] += loss[:, i, :2].sum().item()
@@ -243,6 +246,28 @@ class Trainer(object):
         loss = ((loss * tau) / tau.sum(axis=0, keepdims=True)).sum()
         loss = loss + mask_loss + kl_loss + seq_loss
 
+        # **************************************************************************************************************************** #
+        # INDICATOR LOSS
+        # **************************************************************************************************************************** #
+        gt, pred = labels['gt_indicators'], outputs['pred_indicators']
+
+        # # bce loss
+        # valid1 = labels['valid'][:, None, :, None]    # (b, 1, 6, 1)
+        # valid2 = labels['valid'][:, None, None, :]    # (b, 1, 1, 6)
+        # ind_loss = self.indicator_criterion_bce(pred, gt)    # (b, 5, 6, 6)
+        # ind_loss = ind_loss * valid1 * valid2    # mask out invalid rows & columns
+        # ind_loss = ind_loss.sum(2) / valid1.sum(2)        # loss is mean of all valid objects (b, 5)
+
+        # cross entropy loss
+        valid = labels['valid'][:, None, :]    # (b, 1, 6)
+        ind_loss = self.indicator_criterion_cross(pred.reshape(-1, 6), torch.argmax(gt, 3).flatten()).reshape(-1, pred_size, gt.shape[2])    # (b, 5, 6)
+        ind_loss = ind_loss * valid    # mask out invalid rows (objects)
+        ind_loss = ind_loss.sum(2) / valid.sum(2)        # loss is mean of all valid objects (b, 5)
+
+        self.loss_ind = ((ind_loss.mean(0) * tau) / tau.sum(axis=0, keepdims=True)).sum()
+        loss += self.ind * self.loss_ind
+        # **************************************************************************************************************************** #
+
         return loss
 
     def snapshot(self, name='ckpt_latest.path.tar'):
@@ -277,6 +302,7 @@ class Trainer(object):
         self.masks_step_losses = [0.0 for _ in range(self.ptest_size)]
         # an statistics of each validation
         self.loss_cnt = 0
+        self.loss_ind = 0
         self.time = timer()
 
     def _adjust_learning_rate(self):
